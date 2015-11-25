@@ -374,6 +374,7 @@ function! s:InitTypes() abort
         \ 'function'   : 'f',
         \ 'subroutine' : 's'
     \ }
+    let type_fortran.sort = 0
     let s:known_types.fortran = type_fortran
     " HTML {{{3
     let type_html = s:TypeInfo.New()
@@ -662,24 +663,31 @@ function! s:InitTypes() abort
         \ {'short' : 's', 'long' : 'sections',       'fold' : 0, 'stl' : 1},
         \ {'short' : 'u', 'long' : 'subsections',    'fold' : 0, 'stl' : 1},
         \ {'short' : 'b', 'long' : 'subsubsections', 'fold' : 0, 'stl' : 1},
-        \ {'short' : 'P', 'long' : 'paragraphs',     'fold' : 0, 'stl' : 0},
-        \ {'short' : 'G', 'long' : 'subparagraphs',  'fold' : 0, 'stl' : 0},
-        \ {'short' : 'l', 'long' : 'labels',         'fold' : 0, 'stl' : 0}
+        \ {'short' : 'I', 'long' : 'inputs',         'fold' : 0, 'stl' : 1},
+        \ {'short' : 'P', 'long' : 'paragraphs',     'fold' : 0, 'stl' : 1},
+        \ {'short' : 'G', 'long' : 'subparagraphs',  'fold' : 0, 'stl' : 1}
     \ ]
+"         \ {'short' : 'l', 'long' : 'labels',         'fold' : 0, 'stl' : 0}
     let type_tex.sro        = '""'
     let type_tex.kind2scope = {
         \ 'p' : 'part',
         \ 'c' : 'chapter',
         \ 's' : 'section',
         \ 'u' : 'subsection',
-        \ 'b' : 'subsubsection'
+        \ 'b' : 'subsubsection',
+        \ 'P' : 'paragraph',
+        \ 'G' : 'subparagraph',
+        \ 'I' : 'input'
     \ }
     let type_tex.scope2kind = {
         \ 'part'          : 'p',
         \ 'chapter'       : 'c',
         \ 'section'       : 's',
         \ 'subsection'    : 'u',
-        \ 'subsubsection' : 'b'
+        \ 'subsubsection' : 'b',
+        \ 'paragraph'     : 'P',
+        \ 'subparagraph'  : 'G',
+        \ 'input' : 'I'
     \ }
     let type_tex.sort = 0
     let s:known_types.tex = type_tex
@@ -2199,6 +2207,8 @@ function! s:ParseTagline(part1, part2, typeinfo, fileinfo) abort
 
     let taginfo      = s:NormalTag.New(basic_info[0])
     let taginfo.file = basic_info[1]
+    "MANU
+"     execute "!echo ". expand(taginfo.file).">>/tmp/buff"  
 
     " the pattern can contain tabs and thus may have been split up, so join
     " the rest of the items together again
@@ -2930,6 +2940,7 @@ endfunction
 
 " s:JumpToTag() {{{2
 function! s:JumpToTag(stay_in_tagbar) abort
+    call s:LogDebugMessage("Jump to tag:")
     let taginfo = s:GetTagInfo(line('.'), 1)
 
     let autoclose = w:autoclose
@@ -2940,46 +2951,54 @@ function! s:JumpToTag(stay_in_tagbar) abort
 
     let tagbarwinnr = winnr()
 
-    call s:GotoFileWindow(taginfo.fileinfo)
+    if match(taginfo.file,'^\/tmp') == -1
+        " --------------------------------------------------------------------------------
+        " --- MANU  if the tag do not reference to the current file, then open it
+        " --------------------------------------------------------------------------------
+        call s:LogDebugMessage(">>>Forcing opening of non-current file:".taginfo.file)
+        call s:GotoFileWindowForceOpen(taginfo.file)
+    else
+        call s:GotoFileWindow(taginfo.fileinfo)
 
-    " Mark current position so it can be jumped back to
-    mark '
+        " Mark current position so it can be jumped back to
+        mark '
 
-    " Jump to the line where the tag is defined. Don't use the search pattern
-    " since it doesn't take the scope into account and thus can fail if tags
-    " with the same name are defined in different scopes (e.g. classes)
-    execute taginfo.fields.line
+        " Jump to the line where the tag is defined. Don't use the search pattern
+        " since it doesn't take the scope into account and thus can fail if tags
+        " with the same name are defined in different scopes (e.g. classes)
+        execute taginfo.fields.line
 
-    " If the file has been changed but not saved, the tag may not be on the
-    " saved line anymore, so search for it in the vicinity of the saved line
-    if match(getline('.'), taginfo.pattern) == -1
-        let interval = 1
-        let forward  = 1
-        while search(taginfo.pattern, 'W' . forward ? '' : 'b') == 0
-            if !forward
-                if interval > line('$')
-                    break
-                else
-                    let interval = interval * 2
+        " If the file has been changed but not saved, the tag may not be on the
+        " saved line anymore, so search for it in the vicinity of the saved line
+        if match(getline('.'), taginfo.pattern) == -1
+            let interval = 1
+            let forward  = 1
+            while search(taginfo.pattern, 'W' . forward ? '' : 'b') == 0
+                if !forward
+                    if interval > line('$')
+                        break
+                    else
+                        let interval = interval * 2
+                    endif
                 endif
-            endif
-            let forward = !forward
-        endwhile
+                let forward = !forward
+            endwhile
+        endif
+
+        " If the tag is on a different line after unsaved changes update the tag
+        " and file infos/objects
+        let curline = line('.')
+        if taginfo.fields.line != curline
+            let taginfo.fields.line = curline
+            let taginfo.fileinfo.fline[curline] = taginfo
+        endif
+
+        " Center the tag in the window and jump to the correct column if available
+        normal! z.
+        call cursor(taginfo.fields.line, taginfo.fields.column)
+
+        normal! zv
     endif
-
-    " If the tag is on a different line after unsaved changes update the tag
-    " and file infos/objects
-    let curline = line('.')
-    if taginfo.fields.line != curline
-        let taginfo.fields.line = curline
-        let taginfo.fileinfo.fline[curline] = taginfo
-    endif
-
-    " Center the tag in the window and jump to the correct column if available
-    normal! z.
-    call cursor(taginfo.fields.line, taginfo.fields.column)
-
-    normal! zv
 
     if a:stay_in_tagbar
         call s:HighlightTag(0)
@@ -3622,6 +3641,26 @@ function! s:GetFileWinnr(fileinfo) abort
 
     return filewinnr
 endfunction
+
+
+" s:GotoFileWindowForceOpen() {{{2
+" Try to switch to the window that has Tagbar's current file loaded in it, or
+" open the file in an existing window otherwise.
+function! s:GotoFileWindowForceOpen(fname,...) abort
+    let noauto = a:0 > 0 ? a:1 : 0
+    for i in range(1, winnr('$'))
+        call s:goto_win(i, 1)
+        if &buftype == '' && !&previewwindow
+            execute 'edit ' . a:fname
+            break
+        endif
+    endfor
+    " To make ctrl-w_p work we switch between the Tagbar window and the
+    " correct window once
+    call s:goto_tagbar(noauto)
+    call s:goto_win('p', noauto)
+endfunction
+
 
 " s:GotoFileWindow() {{{2
 " Try to switch to the window that has Tagbar's current file loaded in it, or

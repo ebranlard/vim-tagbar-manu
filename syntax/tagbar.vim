@@ -11,6 +11,34 @@ if exists("b:current_syntax")
     finish
 endif
 
+
+" MANU
+syntax match TagListPART  '.* part$'
+syntax match TagListCHAP  '.*chapter$'
+syntax match TagListSEC  '.*section'
+syntax match TagListSUBSEC  '.*subsection'
+syntax match TagListINPUT  '.*input'
+
+
+highlight default link TagListPART Special
+highlight default link TagListCHAP PreProc
+highlight default link TagListSEC Statement
+highlight default link TagListSUBSEC Identifier
+highlight default link TagListINPUT String
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 let s:ics = escape(join(g:tagbar_iconchars, ''), ']^\-')
 let s:pattern = '\(^[' . s:ics . '] \?\)\@<=[^-+: ]\+[^:]\+$'
 execute "syntax match TagbarKind '" . s:pattern . "'"
@@ -44,7 +72,8 @@ highlight default link TagbarHelpKey    Identifier
 highlight default link TagbarHelpTitle  PreProc
 highlight default link TagbarKind       Identifier
 highlight default link TagbarNestedKind TagbarKind
-highlight default link TagbarScope      Title
+" highlight default link TagbarScope      Title
+highlight default link TagbarScope      Special
 highlight default link TagbarType       Type
 highlight default link TagbarSignature  SpecialKey
 highlight default link TagbarPseudoID   NonText
