@@ -3023,11 +3023,11 @@ function! s:JumpToTag(stay_in_tagbar) abort
 
     let tagbarwinnr = winnr()
 
-    if match(taginfo.file,'^\/tmp') == -1
+    if has("unix") && match(taginfo.file,'^\/tmp') == -1
         " --------------------------------------------------------------------------------
         " --- MANU  if the tag do not reference to the current file, then open it
         " --------------------------------------------------------------------------------
-        call s:LogDebugMessage(">>>Forcing opening of non-current file:".taginfo.file)
+        call s:debug(">>>Forcing opening of non-current file:".taginfo.file)
         call s:GotoFileWindowForceOpen(taginfo.file)
     else
         call s:GotoFileWindow(taginfo.fileinfo)
